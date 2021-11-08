@@ -322,5 +322,5 @@ async def get_level_data():
     return users
 
 
-TOKEN = 'ODk0NDU4OTc0NjE3ODk0OTUy.YVqT1Q.jYwV6TVY_v_-B_jFZMDmdG9PerY'
+TOKEN = 'token'
 client.run(TOKEN)
