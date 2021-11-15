@@ -3,12 +3,32 @@ import requests
 import json
 import os
 from discord.ext import commands
+from discord.ext.commands import MissingPermissions, has_permissions
 from discord.utils import get
 import random
 
 client = commands.Bot(command_prefix="!")
+client.remove_command("help")
 
 os.chdir('C:\\Users\\vihaan\\PycharmProjects\\discord.py')
+
+player1 = ""
+player2 = ""
+turn = ""
+gameOver = True
+
+board = []
+
+winningConditions = [
+    [0, 1, 2],
+    [3, 4, 5],
+    [6, 7, 8],
+    [0, 3, 6],
+    [1, 4, 7],
+    [2, 5, 8],
+    [0, 4, 8],
+    [2, 4, 6]
+]
 
 
 def get_meme():
@@ -43,9 +63,6 @@ async def on_message(message):
             json.dump(users, f)
     if not message.author.bot:
         user = message.author
-    if message.content.startswith('!help'):
-        await message.channel.send("!hello-To say hello to Nani(Bot)")
-        await message.channel.send("!inspire-Inspirational lines")
     if message.author == client.user:
         return
     if message.content.startswith('!hello'):
@@ -59,6 +76,30 @@ async def on_message(message):
     if message.author == client.user:
         return
     await client.process_commands(message)
+
+
+@client.command()
+async def help(ctx):
+    em = discord.Embed(title="Help command", color=discord.Color.red())
+    info = "Get random motivational lines"
+    em.add_field(name="!inspire", value=info, inline=True)
+    info2 = "Get a random meme"
+    em.add_field(name="!meme", value=info2, inline=True)
+    info3 = "Check your economy details"
+    em.add_field(name="!balance", value=info3, inline=True)
+    info4 = "Check your level details"
+    em.add_field(name="!level", value=info4, inline=True)
+    info5 = "Play rock paper scissors"
+    em.add_field(name="!rps choice(rock, paper, scissors)", value=info5, inline=True)
+    info6 = "Play tictactoe with your friends"
+    em.add_field(name="!tictactoe member member", value=info6, inline=True)
+    info7 = "Donate 10 gems to another member (only available for Admins and you can not donate yourself gems)"
+    em.add_field(name="!donate member", value=info7, inline=True)
+    info8 = "Play rock paper scissors"
+    em.add_field(name="!rps choice(rock, paper, scissors)", value=info8, inline=True)
+    info9 = "Buy a role for a fixed amount ie(Admin-1000, Owner-10000)"
+    em.add_field(name="!buy (role)", value=info9, inline=True)
+    await ctx.send(embed=em)
 
 
 @client.command()
@@ -194,21 +235,25 @@ async def convert(ctx, amount=0):
 
 
 @client.command()
-async def donated(ctx, member: discord.Member):
+@has_permissions(manage_roles=True)
+async def donate(ctx, member: discord.Member):
     await open_account(member)
+    if ctx.author == member:
+        await ctx.send("You can't give yourself Gems!")
+    else:
+        user = member.id
+        users = await get_bank_data()
+        amt = 10
+        await ctx.send(f"{ctx.author} gave {member} [10] Gems as an appreciation")
+        users[str(user)]["Gems"] += amt
+        with open("economy.json", "w") as f:
+            json.dump(users, f)
 
-    user = member.id
 
-    users = await get_bank_data()
-
-    amt = 10
-
-    await ctx.send(f"{ctx.author} gave {member} [10] Gems as an appreciation")
-
-    users[str(user)]["Gems"] += amt
-
-    with open("economy.json", "w") as f:
-        json.dump(users, f)
+@donate.error
+async def donate(error, ctx):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have required roles(Admin,Owner) to do that!")
 
 
 @client.command()
@@ -252,6 +297,7 @@ async def get_bank_data():
 
 @client.command()
 async def level(ctx):
+    global ranking
     await open_account_level(ctx.author)
 
     users = await get_level_data()
@@ -297,7 +343,7 @@ async def level_up(users, user, message):
     lvl_end = int(experience ** (1 / 4))
     if lvl_start < lvl_end:
         await message.channel.send(f'{user.mention} has leveled up to level {lvl_end}')
-        users[f'{user.id}']['Exp Level'] = lvl_end
+        users[f'{user.id}']['Level'] = lvl_end
 
 
 async def open_account_level(user):
@@ -322,5 +368,146 @@ async def get_level_data():
     return users
 
 
-TOKEN = 'token'
-client.run(TOKEN)
+@client.command()
+async def tictactoe(ctx, p1: discord.Member, p2: discord.Member):
+    global count
+    global player1
+    global player2
+    global turn
+    global gameOver
+
+    if gameOver:
+        global board
+        board = [":white_large_square:", ":white_large_square:", ":white_large_square:",
+                 ":white_large_square:", ":white_large_square:", ":white_large_square:",
+                 ":white_large_square:", ":white_large_square:", ":white_large_square:"]
+        turn = ""
+        gameOver = False
+        count = 0
+
+        player1 = p1
+        player2 = p2
+
+        # print the board
+        line = ""
+        for x in range(len(board)):
+            if x == 2 or x == 5 or x == 8:
+                line += " " + board[x]
+                await ctx.send(line)
+                line = ""
+            else:
+                line += " " + board[x]
+
+        # determine who goes first
+        num = random.randint(1, 2)
+        if num == 1:
+            turn = player1
+            await ctx.send("It is <@" + str(player1.id) + ">'s turn.")
+        elif num == 2:
+            turn = player2
+            await ctx.send("It is <@" + str(player2.id) + ">'s turn.")
+    else:
+        await ctx.send("A game is already in progress! Finish it before starting a new one.")
+
+
+@client.command()
+async def place(ctx, pos: int):
+    global turn
+    global player1
+    global player2
+    global board
+    global count
+    global gameOver
+
+    if not gameOver:
+        mark = ""
+        if turn == ctx.author:
+            if turn == player1:
+                mark = ":regional_indicator_x:"
+            elif turn == player2:
+                mark = ":o2:"
+            if 0 < pos < 10 and board[pos - 1] == ":white_large_square:":
+                board[pos - 1] = mark
+                count += 1
+
+                # print the board
+                line = ""
+                for x in range(len(board)):
+                    if x == 2 or x == 5 or x == 8:
+                        line += " " + board[x]
+                        await ctx.send(line)
+                        line = ""
+                    else:
+                        line += " " + board[x]
+
+                checkWinner(winningConditions, mark)
+                print(count)
+                if gameOver == True:
+                    await ctx.send(mark + " wins!")
+                    if mark == ':o2:':
+                        await ctx.send(f"{player2} won and also got 100 coins!")
+                        await open_account(player2)
+                        users = await get_bank_data()
+                        earnings = 100
+                        user = player2.id
+                        users[str(user)]["Coins"] += earnings
+                        with open("economy.json", "w") as f:
+                            json.dump(users, f)
+                    if mark == ':regional_indicator_x:':
+                        await ctx.send(f"{player1} won and also got 100 coins")
+                        user = player1.id
+                        await open_account(player1)
+                        users = await get_bank_data()
+                        earnings = 100
+                        users[str(user)]["Coins"] += earnings
+                        with open("economy.json", "w") as f:
+                            json.dump(users, f)
+                elif count >= 9:
+                    gameOver = True
+                    await ctx.send("It's a tie!")
+
+                # switch turns
+                if turn == player1:
+                    turn = player2
+                elif turn == player2:
+                    turn = player1
+            else:
+                await ctx.send("Be sure to choose an integer between 1 and 9 (inclusive) and an unmarked tile.")
+        else:
+            await ctx.send("It is not your turn.")
+    else:
+        await ctx.send("Please start a new game using the !tictactoe command.")
+
+
+def checkWinner(winningConditions, mark):
+    global gameOver
+    for condition in winningConditions:
+        if board[condition[0]] == mark and board[condition[1]] == mark and board[condition[2]] == mark:
+            gameOver = True
+
+
+@tictactoe.error
+async def tictactoe_error(ctx, error):
+    print(error)
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Please mention 2 players for this command.")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("Please make sure to mention/ping players (ie. <@688534433879556134>).")
+
+
+@place.error
+async def place_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Please enter a position you would like to mark.")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("Please make sure to enter an integer.")
+
+
+async def give_money():
+    pass
+
+
+with open('token.json') as f:
+    data = json.load(f)
+    token = data["TOKEN"]
+client.run(token)
